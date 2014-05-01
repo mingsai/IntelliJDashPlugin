@@ -8,21 +8,27 @@ import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.SelectionModel;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.projectRoots.Sdk;
+import com.intellij.openapi.projectRoots.SdkTypeId;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.wm.impl.status.StatusBarUtil;
 import com.intellij.psi.PsiComment;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import de.dreamlab.dash.DashLauncher;
-import de.dreamlab.dash.KeywordLookup;
 
 public class DashLauncherAction extends AnAction {
-    private KeywordLookup keywordLookup;
-    private DashLauncher dashLauncher;
+    private final KeywordLookup androidKeywordLookup;
+    private final KeywordLookup defaultKeywordLookup;
+
+    private static final String XML_LANGUAGE_ID = "XML";
+    private static final String ANDROID_SDK_ID = "Android SDK";
 
     public DashLauncherAction()
     {
-        keywordLookup = new KeywordLookup();
-        dashLauncher = new DashLauncher();
+        final DashLauncher launcher = new DashLauncher();
+        androidKeywordLookup = new AndroidKeywordLookup(launcher);
+        defaultKeywordLookup = new KeywordLookup(launcher);
     }
 
     @Override
@@ -37,7 +43,7 @@ public class DashLauncherAction extends AnAction {
         PsiElement psiElement = psiFile.findElementAt(editor.getCaretModel().getOffset());
         Language language = elementLanguage(psiElement);
 
-        String query = null;
+        String query;
 
         SelectionModel selectionModel = editor.getSelectionModel();
         if ( selectionModel.hasSelection() ) {
@@ -53,6 +59,24 @@ public class DashLauncherAction extends AnAction {
         }
 
         if ( query != null ) {
+            final Project project = e.getProject();
+            if (project == null) {
+                return;
+            }
+
+            KeywordLookup keywordLookup = defaultKeywordLookup;
+
+            // Check if the current project is Java + Android, or otherwise.
+
+            final ProjectRootManager projectRootManager = ProjectRootManager.getInstance(project);
+            final Sdk sdk = projectRootManager.getProjectSdk();
+            if (sdk != null) {
+                final SdkTypeId sdkTypeId = sdk.getSdkType();
+                if (ANDROID_SDK_ID.equals(sdkTypeId.getName())) {
+                    keywordLookup = androidKeywordLookup;
+                }
+            }
+
             // show status message for potential troubleshooting
             String resolvedLanguage = keywordLookup.findLanguageName(language);
 
@@ -68,10 +92,10 @@ public class DashLauncherAction extends AnAction {
                 message += ". Based on \"" + language.getID() + "\" context";
             }
 
-            StatusBarUtil.setStatusBarInfo(e.getProject(), message);
+            StatusBarUtil.setStatusBarInfo(project, message);
 
             // open dash
-            dashLauncher.search(keywordLookup.findKeywords(language), query);
+            keywordLookup.searchOnDash(language, query);
         }
     }
 
@@ -81,10 +105,12 @@ public class DashLauncherAction extends AnAction {
             return null;
         }
 
-        if ( element.getLanguage().getID() == "XML" ) {
+        if ( XML_LANGUAGE_ID.equals(element.getLanguage().getID()) ) {
             PsiElement parent = element.getParent();
 
-            if ( parent.getLanguage().getID() != "XML" && parent.getLanguage().getBaseLanguage().getID() == "XML" ) {
+            final Language parentLanguage = parent.getLanguage();
+            final Language baseLanguage = parentLanguage.getBaseLanguage();
+            if ( baseLanguage == null || (!XML_LANGUAGE_ID.equals(parentLanguage.getID()) && XML_LANGUAGE_ID.equals(baseLanguage.getID())) ) {
                 return parent.getLanguage();
             }
         }

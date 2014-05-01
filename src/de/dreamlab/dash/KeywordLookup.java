@@ -4,20 +4,20 @@ import com.intellij.lang.Language;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
-import com.intellij.openapi.application.ApplicationInfo;
-import com.intellij.openapi.ui.Messages;
 
 import java.util.*;
 
 public class KeywordLookup {
-    private static final String ANDROID_STUDIO_PRODUCT_CODE = "AI";
+    protected final Map<String, List<String>> languageMap = new HashMap<String, List<String>>();
+    protected final DashLauncher launcher;
 
-    private HashMap<String, List<String>> languageMap;
-
-    public KeywordLookup()
+    public KeywordLookup(final DashLauncher dashLauncher)
     {
-        languageMap = new HashMap<String, List<String>>();
+        launcher = dashLauncher;
+        setUpLanguages();
+    }
 
+    protected void setUpLanguages() {
         // IntelliJ Community Edition 13.1, WebStorm 8.0, PhpStorm 7.1, RubyMine 6.3, PyCharm 3.1
         addLanguage("HTML", "html");
         addLanguage("XHTML", "html");
@@ -39,9 +39,9 @@ public class KeywordLookup {
         addLanguage("SQLite", "sqlite"); // not WebStorm
 
         // IntelliJ Community Edition 13.1
-        addLanguage("JAVA", javaKeyword(), "javafx", "grails", "groovy", "playjava", "spring", "cvj", "processing");
-        addLanguage("JSP", javaKeyword(), "javafx", "grails", "groovy", "playjava", "spring", "cvj", "processing"); // uncertain
-        addLanguage("JSPX", javaKeyword(), "javafx", "grails", "groovy", "playjava", "spring", "cvj", "processing"); // uncertain
+        addLanguage("JAVA", "java6", "java7", "java8", "jee6", "jee7", "javadoc", "javafx", "grails", "groovy", "playjava", "spring", "cvj", "processing");
+        addLanguage("JSP", "java6", "java7", "java8", "jee6", "jee7", "javadoc", "grails", "groovy", "playjava", "spring", "html", "xml", "css");
+        addLanguage("JSPX", "java6", "java7", "java8", "jee6", "jee7", "javadoc", "grails", "groovy", "playjava", "spring", "html", "xml", "css");
 
         // Products listed for each entry
         addLanguage("Dart", "dartlang"); // WebStorm (not yet supported by Dash)
@@ -64,7 +64,6 @@ public class KeywordLookup {
             listRegisteredLanguages();
          */
     }
-
 
     private void listRegisteredLanguages() {
         Collection<Language> languages = Language.getRegisteredLanguages();
@@ -93,12 +92,12 @@ public class KeywordLookup {
         Notifications.Bus.notify(new Notification("Dash", "Dash: Registered Languages ", message, NotificationType.INFORMATION));
     }
 
-    private void addLanguage(String language, String... keywords)
+    protected void addLanguage(String language, String... keywords)
     {
         languageMap.put(language, Arrays.asList(keywords));
     }
 
-    public String findLanguageName(Language language)
+    protected String findLanguageName(Language language)
     {
         while ( language != null ) {
             if ( languageMap.containsKey(language.getID()) ) {
@@ -111,7 +110,7 @@ public class KeywordLookup {
         return null;
     }
 
-    public List<String> findKeywords(Language language)
+    protected List<String> findKeywords(Language language)
     {
         String languageName = findLanguageName(language);
 
@@ -123,13 +122,7 @@ public class KeywordLookup {
         }
     }
 
-    private String javaKeyword()
-    {
-        if ( ANDROID_STUDIO_PRODUCT_CODE.equals(ApplicationInfo.getInstance().getBuild().getProductCode()) ) {
-            return "android";
-        }
-        else {
-            return "java";
-        }
+    public void searchOnDash(final Language language, final String query) {
+        launcher.search(findKeywords(language), query);
     }
 }
